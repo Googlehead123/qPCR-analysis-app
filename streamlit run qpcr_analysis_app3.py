@@ -78,10 +78,23 @@ def calculate_ddct(data, control_gene, reference_group):
     p_vals = {}
     for (grp, tgt), _ in summary.iterrows():
         if grp == reference_group: p_vals[(grp, tgt)] = np.nan; continue
-        g_dct = [data[(data['Sample Name'] == s) & (data['Target Name'] == tgt)]['Ct'].mean() - data[(data['Sample Name'] == s) & (data['Target Name'] == control_gene)]['Ct'].mean() for s in data[data['Group'] == grp]['Sample Name'].unique()]
-        r_dct = [data[(data['Sample Name'] == s) & (data['Target Name'] == tgt)]['Ct'].mean() - data[(data['Sample Name'] == s) & (data['Target Name'] == control_gene)]['Ct'].mean() for s in data[data['Group'] == reference_group]['Sample Name'].unique()]
-        g_dct, r_dct = [x for x in g_dct if not pd.isna(x)], [x for x in r_dct if not pd.isna(x)]
-        p_vals[(grp, tgt)] = stats.ttest_ind(g_dct, r_dct, equal_var=False)[1] if len(g_dct) > 1 and len(r_dct) > 1 else np.nan
+        try:
+            g_vals = []
+            for s in data[data['Group'] == grp]['Sample Name'].unique():
+                tgt_ct = data[(data['Sample Name'] == s) & (data['Target Name'] == tgt)]['Ct'].values
+                ctl_ct = data[(data['Sample Name'] == s) & (data['Target Name'] == control_gene)]['Ct'].values
+                if len(tgt_ct) > 0 and len(ctl_ct) > 0:
+                    val = float(tgt_ct[0]) - float(ctl_ct[0])
+                    if not pd.isna(val): g_vals.append(val)
+            r_vals = []
+            for s in data[data['Group'] == reference_group]['Sample Name'].unique():
+                tgt_ct = data[(data['Sample Name'] == s) & (data['Target Name'] == tgt)]['Ct'].values
+                ctl_ct = data[(data['Sample Name'] == s) & (data['Target Name'] == control_gene)]['Ct'].values
+                if len(tgt_ct) > 0 and len(ctl_ct) > 0:
+                    val = float(tgt_ct[0]) - float(ctl_ct[0])
+                    if not pd.isna(val): r_vals.append(val)
+            p_vals[(grp, tgt)] = stats.ttest_ind(g_vals, r_vals, equal_var=False)[1] if len(g_vals) > 1 and len(r_vals) > 1 else np.nan
+        except: p_vals[(grp, tgt)] = np.nan
     summary['P-Value'] = pd.Series(p_vals)
     summary[['Significant', 'Symbol']] = summary['P-Value'].apply(lambda p: pd.Series(('N/A', '') if pd.isna(p) else (('Yes (p<0.001)', '***') if p < 0.001 else (('Yes (p<0.01)', '**') if p < 0.01 else (('Yes (p<0.05)', '*') if p < 0.05 else ('No', 'ns'))))))
     return summary.reset_index()
