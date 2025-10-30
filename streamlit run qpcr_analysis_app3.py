@@ -48,7 +48,8 @@ def load_and_preprocess_data(uploaded_files, header_rows):
             st.error(f"Error: {file.name} - {e}")
     if not all_data: return None, None, None, None
     combined = pd.concat(all_data, ignore_index=True)
-    combined['Sample Name'] = combined['Sample Name'].astype(str)
+    # Convert to string and clean: 1.0 -> "1", remove .0 from floats
+    combined['Sample Name'] = combined['Sample Name'].apply(lambda x: str(int(float(x))) if pd.notna(x) and str(x).replace('.','').replace('-','').isdigit() and float(x) == int(float(x)) else str(x))
     combined['Target Name'] = combined['Target Name'].astype(str)
     combined['Group'] = combined['Sample Name'].str.strip()
     return combined, combined['Sample Name'].unique().tolist(), combined['Target Name'].unique().tolist(), combined['Group'].unique().tolist()
