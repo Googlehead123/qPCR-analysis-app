@@ -48,6 +48,8 @@ def load_and_preprocess_data(uploaded_files, header_rows):
             st.error(f"Error: {file.name} - {e}")
     if not all_data: return None, None, None, None
     combined = pd.concat(all_data, ignore_index=True)
+    combined['Sample Name'] = combined['Sample Name'].astype(str)
+    combined['Target Name'] = combined['Target Name'].astype(str)
     combined['Group'] = combined['Sample Name'].str.strip()
     return combined, combined['Sample Name'].unique().tolist(), combined['Target Name'].unique().tolist(), combined['Group'].unique().tolist()
 
@@ -144,7 +146,7 @@ def main():
     st.sidebar.download_button("📥 Raw Data", create_excel({'Raw': data}), f"raw_{ts}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     
     st.header("📝 Step 3: Edit Samples")
-    uniq = sorted(groups)
+    uniq = sorted([str(g) for g in groups])
     if 'sc' not in st.session_state: st.session_state['sc'] = {s: {'new': s, 'inc': True, 'ord': i} for i, s in enumerate(uniq)}
     t1, t2, t3 = st.tabs(["List", "Bulk", "Preview"])
     with t1:
