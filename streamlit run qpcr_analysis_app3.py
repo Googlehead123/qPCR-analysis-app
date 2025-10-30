@@ -48,10 +48,21 @@ def load_and_preprocess_data(uploaded_files, header_rows):
             st.error(f"Error: {file.name} - {e}")
     if not all_data: return None, None, None, None
     combined = pd.concat(all_data, ignore_index=True)
-    # Convert to string and clean: 1.0 -> "1", remove .0 from floats
-    combined['Sample Name'] = combined['Sample Name'].apply(lambda x: str(int(float(x))) if pd.notna(x) and str(x).replace('.','').replace('-','').isdigit() and float(x) == int(float(x)) else str(x))
+    # Convert Sample Name: handle numbers and remove .0 from floats
+    def clean_sample(x):
+        try:
+            if pd.isna(x): return "Unknown"
+            x_str = str(x).strip()
+            # Try to convert to float, then int if whole number
+            try:
+                x_float = float(x_str)
+                if x_float == int(x_float): return str(int(x_float))
+                return str(x_float)
+            except: return x_str
+        except: return str(x)
+    combined['Sample Name'] = combined['Sample Name'].apply(clean_sample)
     combined['Target Name'] = combined['Target Name'].astype(str)
-    combined['Group'] = combined['Sample Name'].str.strip()
+    combined['Group'] = combined['Sample Name']
     return combined, combined['Sample Name'].unique().tolist(), combined['Target Name'].unique().tolist(), combined['Group'].unique().tolist()
 
 def calculate_ddct(data, control_gene, reference_group):
@@ -147,7 +158,7 @@ def main():
     st.sidebar.download_button("📥 Raw Data", create_excel({'Raw': data}), f"raw_{ts}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     
     st.header("📝 Step 3: Edit Samples")
-    uniq = sorted([str(g) for g in groups])
+    uniq = sorted([str(g) for g in groups], key=lambda x: (x.replace('.','').isdigit(), x))
     if 'sc' not in st.session_state: st.session_state['sc'] = {s: {'new': s, 'inc': True, 'ord': i} for i, s in enumerate(uniq)}
     t1, t2, t3 = st.tabs(["List", "Bulk", "Preview"])
     with t1:
@@ -159,7 +170,7 @@ def main():
             cfg = st.session_state['sc'][s]
             c1.text(s)
             st.session_state['sc'][s]['new'] = c2.text_input("N", cfg['new'], key=f"n{s}", label_visibility="collapsed")
-            st.session_state['sc'][s]['ord'] = c3.number_input("O", 0, len(uniq)-1, cfg['ord'], key=f"o{s}", label_visibility="collapsed")
+            st.session_state['sc'][s]['ord'] = c3.number_input("O", 0, max(len(uniq)*2, 100), cfg['ord'], key=f"o{s}", label_visibility="collapsed")
             st.session_state['sc'][s]['inc'] = c4.checkbox("I", cfg['inc'], key=f"i{s}", label_visibility="collapsed")
     with t2:
         c1, c2 = st.columns(2)
@@ -177,7 +188,7 @@ def main():
         c1.metric("Total", len(uniq))
         c2.metric("Included", sum(1 for c in st.session_state['sc'].values() if c['inc']))
         c3.metric("Excluded", len(uniq) - sum(1 for c in st.session_state['sc'].values() if c['inc']))
-        st.dataframe(pd.DataFrame(prev), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(prev), width='stretch', hide_index=True)
     
     if st.button("✅ Apply Changes", type="primary"):
         inc_orig = [o for o, c in st.session_state['sc'].items() if c['inc']]
@@ -210,7 +221,7 @@ def main():
             gd = summ[summ['Target Name'] == g].copy()
             for c in ['Mean Ct', 'ΔCt', 'ΔΔCt', 'Fold Change', 'SE ΔΔCt', 'Upper', 'Lower', 'P-Value']:
                 if c in gd.columns: gd[c] = gd[c].round(3)
-            st.dataframe(gd, hide_index=True, use_container_width=True)
+            st.dataframe(gd, hide_index=True, width='stretch')
     st.sidebar.download_button("📥 Results", create_excel({'Summary': summ}), f"results_{ts}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     
     st.header("📈 Graphs")
